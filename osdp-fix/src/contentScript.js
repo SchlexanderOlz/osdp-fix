@@ -12,25 +12,37 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 // -------------------------------
 // STEP 4 — Check relevant labels in the mat-tree
 // -------------------------------
-function markRelevantLabelsInMatTree(labels) {
+async function markRelevantLabelsInMatTree(labels) {
   if (!labels || labels.length === 0) return;
 
-  const nodes = document.querySelectorAll('mat-tree-node');
+  for (const targetLabel of labels) {
 
-  nodes.forEach(node => {
-    const labelSpan = node.querySelector('.mat-checkbox-label');
-    const label = labelSpan ? labelSpan.innerText.trim() : null;
-    if (!label) return;
+    // 🔥 Re-query every time (fixes re-render issue)
+    const nodes = document.querySelectorAll('mat-tree-node');
 
-    if (labels.includes(label)) {
-      // Find the input inside the mat-tree-checkbox and click it if not already checked
-      const checkboxInput = node.querySelector('mat-checkbox input[type="checkbox"]');
-      if (checkboxInput && !checkboxInput.checked) {
-        checkboxInput.click(); // triggers Angular change detection
+    for (const node of nodes) {
+      const labelSpan = node.querySelector('.mat-checkbox-label');
+      const label = labelSpan ? labelSpan.innerText.trim() : null;
+      if (!label) continue;
+
+      if (label === targetLabel) {
+        const checkbox = node.querySelector('mat-checkbox');
+        const checkboxInput = node.querySelector('input[type="checkbox"]');
+
+        if (checkbox && checkboxInput && !checkboxInput.checked) {
+          checkbox.click();
+
+          // small pause so Angular can re-render safely
+          await new Promise(r => setTimeout(r, 30));
+        }
+
+        break; // stop searching once found
       }
     }
-  });
+  }
 }
+
+
 
 
 async function expandAllMatTreeNodes() {
@@ -83,6 +95,8 @@ const sourceInput = document.querySelector('input[name="source"]');
 let fetchedHTML = null;
 let relevantText = null;
 
+  let treeStructure = null;
+
 if (sourceInput && sourceInput.value) {
   try {
     fetchedHTML = await fetchViaBackground(sourceInput.value);
@@ -107,7 +121,6 @@ if (sourceInput && sourceInput.value) {
   // STEP 2 — Build hierarchical mat-tree
   // -------------------------------
   const matTree = document.querySelector('mat-tree');
-  let treeStructure = null;
 
   if (matTree) {
     treeStructure = buildMatTree();
@@ -129,7 +142,7 @@ if (treeStructure && fetchedHTML) {
     // -------------------------------
     // STEP 4 — Mark labels in mat-tree
     // -------------------------------
-    markRelevantLabelsInMatTree(linearLabels);
+    await markRelevantLabelsInMatTree(linearLabels);
 
   } catch (err) {
     result.labelsLinear = "Failed to extract labels: " + err.message;
@@ -148,13 +161,13 @@ function buildMatTree() {
   if (!matTree) return null;
 
   const nodes = Array.from(matTree.querySelectorAll('mat-tree-node'));
-  const tree = [];
+  let tree = [];
   const stack = [];
 
   nodes.forEach(node => {
     const labelSpan = node.querySelector('.mat-checkbox-label');
     const label = labelSpan ? labelSpan.innerText.trim() : null;
-    if (!label || label === "InnoTech" || label === "KriMiSi") return;
+    if (!label ) return;
 
     const level = parseInt(node.getAttribute('aria-level') || '1', 10);
     const newNode = { label, children: [] };
@@ -170,6 +183,12 @@ function buildMatTree() {
 
     stack.length = level + 1;
   });
+
+
+  tree = tree.filter(node =>
+  !["InnoTech", "KriMiSi", "Auftragstags"].includes(node.label)
+);
+
 
   return tree;
 }
@@ -210,21 +229,23 @@ Return the result as a JSON array of strings.
 
   // Example using OpenAI fetch endpoint
   // Replace with your GPT API call
-  chrome.runtime.sendMessage({
+  const response = await chrome.runtime.sendMessage({
   type: "OPENAI_CALL",
   apiKey: "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",
   messages: [{ role: "user", content: prompt }]
-}).then(res => console.log(res));
+})
+  const data = response.data;
+  const cleaned = data
+  .replace(/```json/g, '')
+  .replace(/```/g, '')
+  .trim();
 
 
-  const data = await response.json();
-
-  console.log(data)
-  const text = data?.choices?.[0]?.message?.content;
+  console.log("Data" + cleaned)
 
   // Try parsing JSON
   try {
-    return JSON.parse(text);
+    return JSON.parse(cleaned);
   } catch (err) {
     // fallback: split by line
     return text.split('\n').map(l => l.trim()).filter(Boolean);
@@ -245,14 +266,11 @@ function extractRelevantText(htmlContent, keywords = []) {
   const doc = parser.parseFromString(htmlContent, "text/html");
 
   // Get all visible text elements (p, li, h1-h6)
-  const elements = Array.from(doc.querySelectorAll("p, li, h1, h2, h3, h4, h5, h6"));
+  const elements = Array.from(doc.querySelectorAll("p, h1"));
+  console.log(elements)
 
   // Filter elements that contain at least one keyword
-  const matched = elements.filter(el => {
-    const text = el.textContent.trim().toLowerCase();
-    return keywords.some(kw => text.includes(kw.toLowerCase()));
-  });
 
   // Join the matched texts
-  return matched.map(el => el.textContent.trim()).join("\n\n");
+  return elements.map(el => el.textContent.trim()).join("\n\n");
 }

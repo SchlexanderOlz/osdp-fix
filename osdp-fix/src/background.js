@@ -36,6 +36,7 @@ async function handleMessage(message) {
 
       const data = await response.json();
       const content = data?.choices?.[0]?.message?.content;
+      console.log("Returning content " + content)
       return { success: true, data: content };
     }
 
