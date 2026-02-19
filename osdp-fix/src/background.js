@@ -30,7 +30,7 @@ async function handleMessage(message) {
         body: JSON.stringify({
           model: "gpt-4o-mini",
           messages: message.messages, // array of messages
-          temperature: message.temperature || 1
+          temperature: message.temperature || 0
         })
       });
 

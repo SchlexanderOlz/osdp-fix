@@ -1,12 +1,39 @@
 <!DOCTYPE html>
 <html>
+
 <head>
-  <title>MatTree Tool</title>
+  <meta charset="UTF-8" />
+  <title>OSDP Fix</title>
+  <link rel="stylesheet" href="popup.css" />
 </head>
+
 <body>
-  <button id="runBtn">Run</button>
-  <pre id="output"></pre>
+  <div class="container">
+    <h1>OSDP Fix</h1>
+
+    <div class="section">
+      <label for="apiKey">
+        OpenAI API Key
+        <span id="keyIndicator" class="indicator hidden">● Saved</span>
+      </label>
+
+      <input type="password" id="apiKey" placeholder="sk-..." autocomplete="off" />
+
+      <button id="saveKeyBtn" class="secondary">Save Key</button>
+    </div>
+
+    <div class="section">
+      <button id="runBtn" class="primary">Run</button>
+    </div>
+
+    <div id="statusMessage" class="status-message hidden"></div>
+
+    <div class="section">
+      <pre id="output"></pre>
+    </div>
+  </div>
 
   <script src="popup.js"></script>
 </body>
+
 </html>
