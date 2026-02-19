@@ -28,7 +28,7 @@ async function handleMessage(message) {
           "Authorization": `Bearer ${apiKey}`
         },
         body: JSON.stringify({
-          model: "gpt-5",
+          model: "gpt-4o-mini",
           messages: message.messages, // array of messages
           temperature: message.temperature || 1
         })

@@ -15,14 +15,18 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 async function markRelevantLabelsInMatTree(labels) {
   if (!labels || labels.length === 0) return;
 
-  for (const targetLabel of labels) {
+  labels = [...labels]; // avoid mutating original
 
-    // 🔥 Re-query every time (fixes re-render issue)
+  while (labels.length > 0) {
+    const targetLabel = labels.pop();
+
+    let foundAndClicked = false;
+
     const nodes = document.querySelectorAll('mat-tree-node');
 
     for (const node of nodes) {
       const labelSpan = node.querySelector('.mat-checkbox-label');
-      const label = labelSpan ? labelSpan.innerText.trim() : null;
+      const label = labelSpan?.innerText.trim();
       if (!label) continue;
 
       if (label === targetLabel) {
@@ -30,17 +34,33 @@ async function markRelevantLabelsInMatTree(labels) {
         const checkboxInput = node.querySelector('input[type="checkbox"]');
 
         if (checkbox && checkboxInput && !checkboxInput.checked) {
-          checkbox.click();
+          console.log("Clicking:", label);
 
-          // small pause so Angular can re-render safely
-          await new Promise(r => setTimeout(r, 30));
+          checkbox.dispatchEvent(
+        new MouseEvent('click', {
+          bubbles: false,  // 🔥 critical
+          cancelable: true
+        })
+      );
+
+          await expandAllMatTreeNodes()
+
+
+          // allow Angular to re-render
+          await new Promise(r => setTimeout(r, 40));
         }
 
-        break; // stop searching once found
+        foundAndClicked = true;
+        break;
       }
     }
+
+    // If Angular re-rendered, loop continues naturally
+    // and fresh DOM will be queried in next iteration
   }
 }
+
+
 
 
 
@@ -59,7 +79,14 @@ async function expandAllMatTreeNodes() {
       const isExpanded = node.getAttribute('aria-expanded') === 'true';
 
       if (!isExpanded) {
-        toggleBtn.click();
+          toggleBtn.dispatchEvent(
+        new MouseEvent('click', {
+          bubbles: false,  // 🔥 critical
+          cancelable: true
+        })
+
+      );
+
         expandedSomething = true;
       }
     }
@@ -184,6 +211,7 @@ function buildMatTree() {
     stack.length = level + 1;
   });
 
+  console.log(tree)
 
   tree = tree.filter(node =>
   !["InnoTech", "KriMiSi", "Auftragstags"].includes(node.label)
@@ -214,17 +242,37 @@ async function getRelevantLabelsFromGPT(tree, htmlContent) {
 
   // Construct prompt for GPT
   const prompt = `
-You are given a list of labels from a mat-tree and an HTML article.
+You are given a list of labels an article called "Label-List".
 Return a flat list of all labels that are relevant to the article content.
-Do not include labels unrelated to the article.
+Do NOT include labels unrelated to the article.
+Do NOT include labels which are not included in the "Label-List"
+Returned lables should always be in GERMAN.
 
-Labels:
+Include ATLEAST 3 Cyber-Tags.
+Include ATLEAST 3 Allgemein-Tags.
+Always INCLUDE the following tags in your response:
+  - News
+  - [S]1 Cyber
+
+Always INCLUDE only ONE of the source options. ONE of these source options ALWAYS needs to be included but NEVER both:
+  - Nachrichtenseite
+  - Blog
+
+Be STRICT when choosing labels.
+DO NOT return more than 12 labels.
+IF not enough lables are found, return an empty list "[]"
+
+Return the result as a JSON array of strings.
+Your response should always have the format of: "[element1,element2,elementn]"
+
+IGNORE parts of the HTML content, which seem to be out of context of the articles scope.
+
+"Label-List":
 ${flattenedLabels.join('\n')}
 
 HTML content:
 ${htmlContent}
 
-Return the result as a JSON array of strings.
 `;
 
   // Example using OpenAI fetch endpoint
