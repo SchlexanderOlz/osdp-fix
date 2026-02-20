@@ -311,7 +311,6 @@ async function getRelevantLabelsFromGPT(tree, htmlContent, title) {
   // Construct prompt for GPT
   const prompt = `
 You are a deterministic label classification engine.
-
 Your task is to select labels from the provided **Label-List** and **Title** that are explicitly supported by the Article.
 
 You must strictly follow all rules.
@@ -322,7 +321,7 @@ If any rule is violated, return: []
 ## 1. General Output Rules
 * Output must be a JSON array of objects, where each object has exactly two fields:
   * "label" → the label string (must appear exactly as written in the Label-List)
-  * "justification" -> must contain exactly four consecutive words taken verbatim from the Title or Article that clearly indicate the label’s relevance. Do not include the label if no suitable snippet exists. The snippet must make sense in context; arbitrary words are invalid. Labels like "News", "Nachrichtenseite", "Blog", and the geographic fallback labels "Global" and "kein Standort" do NOT require a justification.
+  * "justification" -> must contain exactly four consecutive words taken verbatim from the Title or Article that clearly indicate the label's relevance. Do not include the label if no suitable snippet exists. The snippet must make sense in context; arbitrary words are invalid. Labels like "News", "Nachrichtenseite", "Blog", and the geographic fallback labels "Global" and "kein Standort" do NOT require a justification.
 * Maximum 20 labels.
 * Minimum 1 label.
 * No duplicates.
@@ -339,8 +338,8 @@ The output must include:
 * Exactly ONE of:
   * "Nachrichtenseite"
   * "Blog"
-
-Selecting both or neither → return [].
+  * Selecting both or neither → return [].
+* "geographische Lokation" Lables
 
 ---
 
@@ -353,13 +352,11 @@ Label categories are defined by their section in the Label-List.
 The output must contain:
 * At least 4 Cyber labels.
 * At least 5 Allgemeine Tags labels.
-
-If not satisfied → return [].
+* If not satisfied → return [].
 
 ---
 
 ## 4. Geographic Location Rules
-
 A geographic location is valid ONLY if the exact label string appears verbatim in the Article text between BEGIN and END.
 The label must match the visible text exactly (case-sensitive match not required, but wording must be identical).
 Semantic interpretation, abbreviation expansion, or inference is strictly forbidden.
@@ -367,32 +364,32 @@ Semantic interpretation, abbreviation expansion, or inference is strictly forbid
 Examples:
 * "U.S." does NOT justify selecting "USA"
 * "European" does NOT justify selecting "Europa"
-* Article language does NOT justify selecting "Deutschland"
+* Article language does NOT justify selecting a geographic Location Tag
 
 If a geographic label is selected without exact textual occurrence → return [{"label": "kein Standort", "justficiation": "Case C"}].
 Exactly ONE of the following cases must apply:
-### Case A – 1–5 exact matches found
+### Case A - 1-5 exact matches found
 * Include each matching geographic label.
 * Minimum 1, maximum 5.
 
-### Case B – More than 5 exact matches found
+### Case B - More than 5 exact matches found
 * Return exactly: [{"label": "Global", "justficiation": "Case B"}]
 * No other geographic labels allowed.
 
-### Case C – No exact match found / Everything else
+### Case C - No exact match found
 * Return exactly: [{"label": "kein Standort", "justification": "Case C"}]
 * "kein Standort" does NOT require a 4-word justification.
 * No other geographic labels allowed.
+
 "Global" and "kein Standort" must not appear together or with any other geographic label.
 
 ---
 
 ## 5. Relevance Rules
-
 * Only select labels directly and explicitly supported by the Article.
 * Do NOT infer, assume, or speculate.
 * Ignore navigation, ads, metadata, and irrelevant HTML.
-* Classify based only on the Article content between:
+* Classify based only on the Article content and Title between:
 
 BEGIN
 ...
@@ -402,8 +399,7 @@ END
 
 ## 6. Global Validation
 The final output must satisfy ALL of the following:
-
-* 1–20 total labels
+* 1-20 total labels
 * Includes "News"
 * Includes "[S]1 Cyber"
 * Exactly one source label
@@ -411,11 +407,12 @@ The final output must satisfy ALL of the following:
 * ≥5 Allgemeine Tags labels
 * Exactly one valid geographic case (A, B, or C)
 * No duplicates
-* All labels from Label-List only
+* All labels contained in the Label-List only
 
 If ANY condition fails → return: []
 
 ---
+
 ## 7. Controlled Concept Association
 ### Labels may be assigned if:
 * The label appears literally in the Article text, or
@@ -432,14 +429,11 @@ If unsure, omit the label rather than guessing.
   * Labels mentioned or strongly implied in the Title are preferred.
 * Labels must still have supporting evidence in either the Title or Article.
   * Article body can provide additional context, but cannot justify labels contradicting the Title.
+
 ---
 
 Output format:
-[
-  {"justification": "U.S. National Institute of" "label": "USA", },
-  {"justification": "increasing cyber reliability in", "label": "Cyber", }
-]
-
+[{"justification":"U.S. National Institute of","label": "USA"},{"justification":"increasing cyber reliability in","label":"Cyber"}]
 
 Label-List:
 Cyber-Lables:
@@ -454,9 +448,9 @@ ${newsInfoLables.join("\n")}
 Struktur-Lables:
 ${strukturLables.join("\n")}
 
-Title: ${title}
 Article:
 BEGIN
+Title: ${title}
 ${htmlContent}
 END
 `;
