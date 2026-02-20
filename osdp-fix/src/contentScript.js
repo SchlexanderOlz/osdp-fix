@@ -107,6 +107,17 @@ async function fetchViaBackground(url) {
   });
 }
 
+async function getArticleContentFromTextField() {
+  const editor = document.getElementById("editck")
+  const editorInner = editor.querySelector('div[role="textbox"]')
+  return editorInner.textContent
+}
+
+async function getArticleTitleFromTextField() {
+  const header = document.getElementById("mat-input-1")
+  return header.value
+}
+
 async function runExtensionLogic() {
   const result = {
     status: "success",
@@ -125,14 +136,30 @@ async function runExtensionLogic() {
   // -------------------------------
   // STEP 1 — Fetch source HTML
   // -------------------------------
-  const sourceInput = document.querySelector('input[name="source"]');
-  let fetchedHTML = null;
-  let relevantText = null;
+  // const sourceInput = document.querySelector('input[name="source"]');
+  // let fetchedHTML = null;
+  let relevantText = await getArticleContentFromTextField();
+  let title = await getArticleTitleFromTextField()
 
   let treeStructure = null;
 
-  if (sourceInput && sourceInput.value) {
+
+  if (!relevantText) {
+      result.fetchedContent = "Missing Content";
+      result.status = "error"
+      result.message = result.fetchedContent;
+      return result;
+  }
+  if (!title) {
+      result.fetchedContent = "Missing Title";
+      result.status = "error"
+      result.message = result.fetchedContent;
+      return result;
+  }
+
+      console.log("Relevant Text Extracted:", relevantText);
     try {
+      /*
       fetchedHTML = await fetchViaBackground(sourceInput.value);
       result.fetchedContent = fetchedHTML;
       console.log("Fetched Content:", fetchedHTML);
@@ -140,20 +167,13 @@ async function runExtensionLogic() {
       // Extract only the relevant text using the tree labels as keywords
       const keywords = treeStructure ? flattenTreeLabels(treeStructure) : [];
       relevantText = extractRelevantText(fetchedHTML.data || fetchedHTML, keywords);
-      console.log("Relevant Text Extracted:", relevantText);
-
+      
+      */
     } catch (err) {
       result.status = "error"
       result.fetchedContent = "Fetch failed: " + err.message;
       result.message = result.fetchedContent;
     }
-  } else {
-    result.status = "error"
-    result.fetchedContent = "No input[name='source'] found.";
-    result.message = result.fetchedContent;
-    return result
-  }
-
 
 
   // -------------------------------
@@ -174,9 +194,9 @@ async function runExtensionLogic() {
   // -------------------------------
   // STEP 3 — Extract relevant labels via GPT
   // -------------------------------
-  if (treeStructure && fetchedHTML) {
+  if (treeStructure) {
     try {
-      const linearLabels = await getRelevantLabelsFromGPT(treeStructure, relevantText);
+      const linearLabels = await getRelevantLabelsFromGPT(treeStructure, relevantText, title);
       result.labelsLinear = linearLabels;
       console.log("Linear Labels:", linearLabels);
 
@@ -260,7 +280,7 @@ function flattenTreeLabels(tree) {
 // -------------------------------
 // Send both tree and HTML to GPT
 // -------------------------------
-async function getRelevantLabelsFromGPT(tree, htmlContent) {
+async function getRelevantLabelsFromGPT(tree, htmlContent, title) {
   const flattenedLabels = flattenTreeLabels(tree);
 
   let strukturLables
@@ -290,48 +310,138 @@ async function getRelevantLabelsFromGPT(tree, htmlContent) {
 
   // Construct prompt for GPT
   const prompt = `
-You are a strict label classifier.
+You are a deterministic label classification engine.
 
-Task:
-Select relevant labels from the provided "Label-List" that match the article.
+Your task is to select labels from the provided **Label-List** and **Title** that are explicitly supported by the Article.
 
-Hard Rules:
-- Only use labels that appear in the "Label-List".
-- Return a flat JSON array of strings.
-- Maximum 20 labels.
-- All labels must be in German.
-- If requirements cannot be satisfied → return [].
+You must strictly follow all rules.
+If any rule is violated, return: []
 
-Mandatory Inclusions:
-- "News"
-- "[S]1 Cyber"
-- EXACTLY ONE of:
-  - "Nachrichtenseite"
-  - "Blog"
+---
 
-Minimum Requirements:
-- At least 3 "Cyber" labels.
-- At least 4 "Allgemeine Tags" labels.
+## 1. General Output Rules
+* Output must be a JSON array of objects, where each object has exactly two fields:
+  * "label" → the label string (must appear exactly as written in the Label-List)
+  * "justification" -> must contain exactly four consecutive words taken verbatim from the Title or Article that clearly indicate the label’s relevance. Do not include the label if no suitable snippet exists. The snippet must make sense in context; arbitrary words are invalid. Labels like "News", "Nachrichtenseite", "Blog", and the geographic fallback labels "Global" and "kein Standort" do NOT require a justification.
+* Maximum 20 labels.
+* Minimum 1 label.
+* No duplicates.
+* All labels must appear exactly as written in the Label-List.
+* All labels must be in German.
+* The "justification" field must reference text explicitly present in the Title or Article.
 
-Relevance Rules:
-- Only choose labels directly supported by the article.
-- Be strict. Do not infer speculative tags.
-- Ignore irrelevant HTML fragments.
+---
 
-Validation Logic:
-If:
-- Fewer than 3 "Cyber" labels
-- OR fewer than 3 "Allgemeine Tags" labels
-- OR more than 12 total labels
-- OR both source tags selected
-- OR no valid source tag selected
-→ Return []
+## 2. Mandatory Labels
+The output must include:
+* "News"
+* "[S]1 Cyber"
+* Exactly ONE of:
+  * "Nachrichtenseite"
+  * "Blog"
+
+Selecting both or neither → return [].
+
+---
+
+## 3. Category Minimum Requirements
+Label categories are defined by their section in the Label-List.
+* Labels under **Cyber-Labels** count as Cyber.
+* Labels under **Allgemeine Tags-Labels** count as Allgemeine Tags.
+* Labels under **NewsInfo-Labels** and **Struktur-Labels** do NOT count toward Cyber or Allgemeine.
+
+The output must contain:
+* At least 4 Cyber labels.
+* At least 5 Allgemeine Tags labels.
+
+If not satisfied → return [].
+
+---
+
+## 4. Geographic Location Rules
+
+A geographic location is valid ONLY if the exact label string appears verbatim in the Article text between BEGIN and END.
+The label must match the visible text exactly (case-sensitive match not required, but wording must be identical).
+Semantic interpretation, abbreviation expansion, or inference is strictly forbidden.
+
+Examples:
+* "U.S." does NOT justify selecting "USA"
+* "European" does NOT justify selecting "Europa"
+* Article language does NOT justify selecting "Deutschland"
+
+If a geographic label is selected without exact textual occurrence → return [{"label": "kein Standort", "justficiation": "Case C"}].
+Exactly ONE of the following cases must apply:
+### Case A – 1–5 exact matches found
+* Include each matching geographic label.
+* Minimum 1, maximum 5.
+
+### Case B – More than 5 exact matches found
+* Return exactly: [{"label": "Global", "justficiation": "Case B"}]
+* No other geographic labels allowed.
+
+### Case C – No exact match found / Everything else
+* Return exactly: [{"label": "kein Standort", "justification": "Case C"}]
+* "kein Standort" does NOT require a 4-word justification.
+* No other geographic labels allowed.
+"Global" and "kein Standort" must not appear together or with any other geographic label.
+
+---
+
+## 5. Relevance Rules
+
+* Only select labels directly and explicitly supported by the Article.
+* Do NOT infer, assume, or speculate.
+* Ignore navigation, ads, metadata, and irrelevant HTML.
+* Classify based only on the Article content between:
+
+BEGIN
+...
+END
+
+---
+
+## 6. Global Validation
+The final output must satisfy ALL of the following:
+
+* 1–20 total labels
+* Includes "News"
+* Includes "[S]1 Cyber"
+* Exactly one source label
+* ≥4 Cyber labels
+* ≥5 Allgemeine Tags labels
+* Exactly one valid geographic case (A, B, or C)
+* No duplicates
+* All labels from Label-List only
+
+If ANY condition fails → return: []
+
+---
+## 7. Controlled Concept Association
+### Labels may be assigned if:
+* The label appears literally in the Article text, or
+* The Article text contains explicit concepts, terms, or phrases that clearly and directly justify the label.
+### Do not assign labels based on weak or inferred association.
+* Example: “AI agent standards in the U.S.” does not justify AI Act.
+* Example: “European AI regulation / European Commission AI law” justifies AI Act.
+If unsure, omit the label rather than guessing.
+
+---
+
+## 8. Weighting Rules
+* Give more weight to the Title than to the body text when determining relevance.
+  * Labels mentioned or strongly implied in the Title are preferred.
+* Labels must still have supporting evidence in either the Title or Article.
+  * Article body can provide additional context, but cannot justify labels contradicting the Title.
+---
 
 Output format:
-["label1","label2","label3"]
+[
+  {"justification": "U.S. National Institute of" "label": "USA", },
+  {"justification": "increasing cyber reliability in", "label": "Cyber", }
+]
+
 
 Label-List:
-
 Cyber-Lables:
 ${cyberLables.join("\n")}
 
@@ -344,9 +454,11 @@ ${newsInfoLables.join("\n")}
 Struktur-Lables:
 ${strukturLables.join("\n")}
 
-HTML content:
+Title: ${title}
+Article:
+BEGIN
 ${htmlContent}
-
+END
 `;
 
   const apiKey = (await chrome.storage.local.get("openai_api_key")).openai_api_key;
@@ -369,7 +481,7 @@ ${htmlContent}
 
   // Try parsing JSON
   try {
-    return JSON.parse(cleaned);
+    return JSON.parse(cleaned).map(e => e.label);
   } catch (err) {
     // fallback: split by line
     return text.split('\n').map(l => l.trim()).filter(Boolean);
