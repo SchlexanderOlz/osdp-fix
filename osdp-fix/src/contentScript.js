@@ -298,7 +298,7 @@ Select relevant labels from the provided "Label-List" that match the article.
 Hard Rules:
 - Only use labels that appear in the "Label-List".
 - Return a flat JSON array of strings.
-- Maximum 12 labels.
+- Maximum 20 labels.
 - All labels must be in German.
 - If requirements cannot be satisfied → return [].
 
