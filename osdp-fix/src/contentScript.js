@@ -259,7 +259,7 @@ Always INCLUDE only ONE of the source options. ONE of these source options ALWAY
   - Blog
 
 Be STRICT when choosing labels.
-DO NOT return more than 12 labels.
+DO NOT return more than 20 labels.
 IF not enough lables are found, return an empty list "[]"
 
 Return the result as a JSON array of strings.
