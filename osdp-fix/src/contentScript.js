@@ -37,11 +37,11 @@ async function markRelevantLabelsInMatTree(labels) {
           console.log("Clicking:", label);
 
           checkbox.dispatchEvent(
-        new MouseEvent('click', {
-          bubbles: false,  // 🔥 critical
-          cancelable: true
-        })
-      );
+            new MouseEvent('click', {
+              bubbles: false,  // 🔥 critical
+              cancelable: true
+            })
+          );
 
           await expandAllMatTreeNodes()
 
@@ -62,6 +62,10 @@ async function markRelevantLabelsInMatTree(labels) {
 
 
 
+async function openTags() {
+  const tab = document.getElementById("mat-tab-label-1-1")
+  tab.click()
+}
 
 
 
@@ -79,13 +83,13 @@ async function expandAllMatTreeNodes() {
       const isExpanded = node.getAttribute('aria-expanded') === 'true';
 
       if (!isExpanded) {
-          toggleBtn.dispatchEvent(
-        new MouseEvent('click', {
-          bubbles: false,  // 🔥 critical
-          cancelable: true
-        })
+        toggleBtn.dispatchEvent(
+          new MouseEvent('click', {
+            bubbles: false,  // 🔥 critical
+            cancelable: true
+          })
 
-      );
+        );
 
         expandedSomething = true;
       }
@@ -105,42 +109,50 @@ async function fetchViaBackground(url) {
 
 async function runExtensionLogic() {
   const result = {
+    status: "success",
     fetchedContent: null,
     matTreeStructure: null,
-    labelsLinear: null
+    labelsLinear: null,
+    message: "Run finished"
   };
 
+  await openTags();
   // -------------------------------
   // STEP 0 — Expand mat-tree fully
   // -------------------------------
   await expandAllMatTreeNodes();
 
   // -------------------------------
-// STEP 1 — Fetch source HTML
-// -------------------------------
-const sourceInput = document.querySelector('input[name="source"]');
-let fetchedHTML = null;
-let relevantText = null;
+  // STEP 1 — Fetch source HTML
+  // -------------------------------
+  const sourceInput = document.querySelector('input[name="source"]');
+  let fetchedHTML = null;
+  let relevantText = null;
 
   let treeStructure = null;
 
-if (sourceInput && sourceInput.value) {
-  try {
-    fetchedHTML = await fetchViaBackground(sourceInput.value);
-    result.fetchedContent = fetchedHTML;
-    console.log("Fetched Content:", fetchedHTML);
+  if (sourceInput && sourceInput.value) {
+    try {
+      fetchedHTML = await fetchViaBackground(sourceInput.value);
+      result.fetchedContent = fetchedHTML;
+      console.log("Fetched Content:", fetchedHTML);
 
-    // Extract only the relevant text using the tree labels as keywords
-    const keywords = treeStructure ? flattenTreeLabels(treeStructure) : [];
-    relevantText = extractRelevantText(fetchedHTML.data || fetchedHTML, keywords);
-    console.log("Relevant Text Extracted:", relevantText);
+      // Extract only the relevant text using the tree labels as keywords
+      const keywords = treeStructure ? flattenTreeLabels(treeStructure) : [];
+      relevantText = extractRelevantText(fetchedHTML.data || fetchedHTML, keywords);
+      console.log("Relevant Text Extracted:", relevantText);
 
-  } catch (err) {
-    result.fetchedContent = "Fetch failed: " + err.message;
+    } catch (err) {
+      result.status = "error"
+      result.fetchedContent = "Fetch failed: " + err.message;
+      result.message = result.fetchedContent;
+    }
+  } else {
+    result.status = "error"
+    result.fetchedContent = "No input[name='source'] found.";
+    result.message = result.fetchedContent;
+    return result
   }
-} else {
-  result.fetchedContent = "No input[name='source'] found.";
-}
 
 
 
@@ -154,27 +166,38 @@ if (sourceInput && sourceInput.value) {
     result.matTreeStructure = treeStructure;
     console.log("Mat Tree Structure:", treeStructure);
   } else {
+    result.status = "error"
     result.matTreeStructure = "No <mat-tree> found.";
+    result.message = "No <mat-tree> found.";
   }
 
   // -------------------------------
-// STEP 3 — Extract relevant labels via GPT
-// -------------------------------
-if (treeStructure && fetchedHTML) {
-  try {
-    const linearLabels = await getRelevantLabelsFromGPT(treeStructure, relevantText);
-    result.labelsLinear = linearLabels;
-    console.log("Linear Labels:", linearLabels);
+  // STEP 3 — Extract relevant labels via GPT
+  // -------------------------------
+  if (treeStructure && fetchedHTML) {
+    try {
+      const linearLabels = await getRelevantLabelsFromGPT(treeStructure, relevantText);
+      result.labelsLinear = linearLabels;
+      console.log("Linear Labels:", linearLabels);
 
-    // -------------------------------
-    // STEP 4 — Mark labels in mat-tree
-    // -------------------------------
-    await markRelevantLabelsInMatTree(linearLabels);
+      if (linearLabels.length == 0) {
+        result.status = "error";
+        result.message = "Article not relevant for Cyberdefense! (Response was empty)"
+        return result
+      }
 
-  } catch (err) {
-    result.labelsLinear = "Failed to extract labels: " + err.message;
+      // -------------------------------
+      // STEP 4 — Mark labels in mat-tree
+      // -------------------------------
+      await markRelevantLabelsInMatTree(linearLabels);
+
+    } catch (err) {
+      result.status = "error"
+      result.labelsLinear = "Failed to extract labels: " + err.message;
+      result.message = result.labelsLinear;
+      return result
+    }
   }
-}
 
 
   return result;
@@ -194,7 +217,7 @@ function buildMatTree() {
   nodes.forEach(node => {
     const labelSpan = node.querySelector('.mat-checkbox-label');
     const label = labelSpan ? labelSpan.innerText.trim() : null;
-    if (!label ) return;
+    if (!label) return;
 
     const level = parseInt(node.getAttribute('aria-level') || '1', 10);
     const newNode = { label, children: [] };
@@ -214,8 +237,8 @@ function buildMatTree() {
   console.log(tree)
 
   tree = tree.filter(node =>
-  !["InnoTech", "KriMiSi", "Auftragstags"].includes(node.label)
-);
+    !["InnoTech", "KriMiSi", "Auftragstags"].includes(node.label)
+  );
 
 
   return tree;
@@ -240,53 +263,106 @@ function flattenTreeLabels(tree) {
 async function getRelevantLabelsFromGPT(tree, htmlContent) {
   const flattenedLabels = flattenTreeLabels(tree);
 
+  let strukturLables
+  let cyberLables;
+  let allgemeinLables;
+  let newsInfoLables;
+
+  tree.forEach(node => {
+    console.log(node)
+    let elements = flattenTreeLabels(node.children);
+    switch (node.label) {
+      case "Struktur": {
+        strukturLables = elements;
+      }
+      case "Cyber": {
+        cyberLables = elements;
+      }
+      case "Allgemeine Tags": {
+        allgemeinLables = elements;
+      }
+      case "Newsinfo": {
+        newsInfoLables = elements;
+      }
+
+    }
+  })
+
   // Construct prompt for GPT
   const prompt = `
-You are given a list of labels an article called "Label-List".
-Return a flat list of all labels that are relevant to the article content.
-Do NOT include labels unrelated to the article.
-Do NOT include labels which are not included in the "Label-List"
-Returned lables should always be in GERMAN.
+You are a strict label classifier.
 
-Include ATLEAST 3 Cyber-Tags.
-Include ATLEAST 3 Allgemein-Tags.
-Always INCLUDE the following tags in your response:
-  - News
-  - [S]1 Cyber
+Task:
+Select relevant labels from the provided "Label-List" that match the article.
 
-Always INCLUDE only ONE of the source options. ONE of these source options ALWAYS needs to be included but NEVER both:
-  - Nachrichtenseite
-  - Blog
+Hard Rules:
+- Only use labels that appear in the "Label-List".
+- Return a flat JSON array of strings.
+- Maximum 12 labels.
+- All labels must be in German.
+- If requirements cannot be satisfied → return [].
 
-Be STRICT when choosing labels.
-DO NOT return more than 20 labels.
-IF not enough lables are found, return an empty list "[]"
+Mandatory Inclusions:
+- "News"
+- "[S]1 Cyber"
+- EXACTLY ONE of:
+  - "Nachrichtenseite"
+  - "Blog"
 
-Return the result as a JSON array of strings.
-Your response should always have the format of: "[element1,element2,elementn]"
+Minimum Requirements:
+- At least 3 "Cyber" labels.
+- At least 4 "Allgemeine Tags" labels.
 
-IGNORE parts of the HTML content, which seem to be out of context of the articles scope.
+Relevance Rules:
+- Only choose labels directly supported by the article.
+- Be strict. Do not infer speculative tags.
+- Ignore irrelevant HTML fragments.
 
-"Label-List":
-${flattenedLabels.join('\n')}
+Validation Logic:
+If:
+- Fewer than 3 "Cyber" labels
+- OR fewer than 3 "Allgemeine Tags" labels
+- OR more than 12 total labels
+- OR both source tags selected
+- OR no valid source tag selected
+→ Return []
+
+Output format:
+["label1","label2","label3"]
+
+Label-List:
+
+Cyber-Lables:
+${cyberLables.join("\n")}
+
+Allgemeine Tags-Lables:
+${allgemeinLables.join("\n")}
+
+NewsInfo-Lables:
+${newsInfoLables.join("\n")}
+
+Struktur-Lables:
+${strukturLables.join("\n")}
 
 HTML content:
 ${htmlContent}
 
 `;
 
+  const apiKey = (await chrome.storage.local.get("openai_api_key")).openai_api_key;
+
   // Example using OpenAI fetch endpoint
   // Replace with your GPT API call
   const response = await chrome.runtime.sendMessage({
-  type: "OPENAI_CALL",
-  apiKey: "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",
-  messages: [{ role: "user", content: prompt }]
-})
+    type: "OPENAI_CALL",
+    apiKey: apiKey,
+    messages: [{ role: "user", content: prompt }]
+  })
   const data = response.data;
   const cleaned = data
-  .replace(/```json/g, '')
-  .replace(/```/g, '')
-  .trim();
+    .replace(/```json/g, '')
+    .replace(/```/g, '')
+    .trim();
 
 
   console.log("Data" + cleaned)
