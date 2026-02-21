@@ -21,22 +21,24 @@ async function handleMessage(message) {
       const apiKey = message.apiKey;
       if (!apiKey) throw new Error("No API key provided");
 
-      const response = await fetch("https://api.openai.com/v1/chat/completions", {
+      const response = await fetch("https://api.openai.com/v1/responses", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${apiKey}`
         },
         body: JSON.stringify({
-          model: "gpt-5-mini-2025-08-07",
-          messages: message.messages, // array of messages
+          model: message.model || "gpt-5-nano",
+          reasoning: message.reasoning || {"effort": "low"},
+          text: message.verbosity || { "verbosity": "low"},
+          input: message.messages,
           temperature: message.temperature || 0
         })
       });
 
       const data = await response.json();
-      const content = data?.choices?.[0]?.message?.content;
-      console.log("Returning content " + content)
+      const content = data?.output?.[1]?.content[0].text;
+      console.log("Returning content " + JSON.stringify(content))
       return { success: true, data: content };
     }
 

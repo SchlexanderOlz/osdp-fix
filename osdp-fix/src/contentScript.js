@@ -280,7 +280,7 @@ function flattenTreeLabels(tree) {
 // -------------------------------
 // Send both tree and HTML to GPT
 // -------------------------------
-async function getRelevantLabelsFromGPT(tree, htmlContent, title) {
+async function getRelevantLabelsFromGPT(tree, htmlContent, title, model = "gpt-5-nano") {
   const flattenedLabels = flattenTreeLabels(tree);
 
   let strukturLables
@@ -309,143 +309,56 @@ async function getRelevantLabelsFromGPT(tree, htmlContent, title) {
   })
 
   // Construct prompt for GPT
-  const prompt = `
-You are a deterministic label classification engine.
-Your task is to select labels from the provided **Label-List** and **Title** that are explicitly supported by the Article.
+    const prompt = `
+You are a label classifier.
 
-You must strictly follow all rules.
-If any rule is violated, return: []
+Return a JSON array (1–20 labels) taken exactly from the Label-List.
+No duplicates.
 
----
+Required labels:
+- "News"
+- "[S]1 Cyber"
+- Exactly ONE of: "Nachrichtenseite" OR "Blog"
 
-## 1. General Output Rules
-* Output must be a JSON array of objects, where each object has exactly two fields:
-  * "label" → the label string (must appear exactly as written in the Label-List)
-  * "justification" -> must contain exactly four consecutive words taken verbatim from the Title or Article that clearly indicate the label's relevance. Do not include the label if no suitable snippet exists. The snippet must make sense in context; arbitrary words are invalid. Labels like "News", "Nachrichtenseite", "Blog", and the geographic fallback labels "Global" and "kein Standort" do NOT require a justification.
-* Maximum 20 labels.
-* Minimum 1 label.
-* No duplicates.
-* All labels must appear exactly as written in the Label-List.
-* All labels must be in German.
-* The "justification" field must reference text explicitly present in the Title or Article.
+Category minimums:
+- At least 4 Cyber labels
+- At least 5 Allgemeine Tags labels
 
----
+Geographic rule (VERY IMPORTANT):
 
-## 2. Mandatory Labels
-The output must include:
-* "News"
-* "[S]1 Cyber"
-* Exactly ONE of:
-  * "Nachrichtenseite"
-  * "Blog"
-  * Selecting both or neither → return [].
-* "geographische Lokation" Lables
+Only select a geographic label if its exact wording appears in the Article (between BEGIN and END).
+No inference, no abbreviation expansion.
 
----
+If ZERO exact geographic matches are found:
+Add "kein Standort" as the only geographic label.
 
-## 3. Category Minimum Requirements
-Label categories are defined by their section in the Label-List.
-* Labels under **Cyber-Labels** count as Cyber.
-* Labels under **Allgemeine Tags-Labels** count as Allgemeine Tags.
-* Labels under **NewsInfo-Labels** and **Struktur-Labels** do NOT count toward Cyber or Allgemeine.
+If 1–5 exact matches:
+Include those labels.
 
-The output must contain:
-* At least 4 Cyber labels.
-* At least 5 Allgemeine Tags labels.
-* If not satisfied → return [].
+If more than 5 exact matches:
+Add "Global" as the only geographic label.
 
----
+"Global" and "kein Standort" must not appear with other geographic labels.
 
-## 4. Geographic Location Rules
-A geographic location is valid ONLY if the exact label string appears verbatim in the Article text between BEGIN and END.
-The label must match the visible text exactly (case-sensitive match not required, but wording must be identical).
-Semantic interpretation, abbreviation expansion, or inference is strictly forbidden.
+Relevance:
+Select only labels clearly supported by the Title or Article.
+Do not guess.
 
-Examples:
-* "U.S." does NOT justify selecting "USA"
-* "European" does NOT justify selecting "Europa"
-* Article language does NOT justify selecting a geographic Location Tag
-
-If a geographic label is selected without exact textual occurrence → return [{"label": "kein Standort", "justficiation": "Case C"}].
-Exactly ONE of the following cases must apply:
-### Case A - 1-5 exact matches found
-* Include each matching geographic label.
-* Minimum 1, maximum 5.
-
-### Case B - More than 5 exact matches found
-* Return exactly: [{"label": "Global", "justficiation": "Case B"}]
-* No other geographic labels allowed.
-
-### Case C - No exact match found
-* Return exactly: [{"label": "kein Standort", "justification": "Case C"}]
-* "kein Standort" does NOT require a 4-word justification.
-* No other geographic labels allowed.
-
-"Global" and "kein Standort" must not appear together or with any other geographic label.
-
----
-
-## 5. Relevance Rules
-* Only select labels directly and explicitly supported by the Article.
-* Do NOT infer, assume, or speculate.
-* Ignore navigation, ads, metadata, and irrelevant HTML.
-* Classify based only on the Article content and Title between:
-
-BEGIN
-...
-END
-
----
-
-## 6. Global Validation
-The final output must satisfy ALL of the following:
-* 1-20 total labels
-* Includes "News"
-* Includes "[S]1 Cyber"
-* Exactly one source label
-* ≥4 Cyber labels
-* ≥5 Allgemeine Tags labels
-* Exactly one valid geographic case (A, B, or C)
-* No duplicates
-* All labels contained in the Label-List only
-
-If ANY condition fails → return: []
-
----
-
-## 7. Controlled Concept Association
-### Labels may be assigned if:
-* The label appears literally in the Article text, or
-* The Article text contains explicit concepts, terms, or phrases that clearly and directly justify the label.
-### Do not assign labels based on weak or inferred association.
-* Example: “AI agent standards in the U.S.” does not justify AI Act.
-* Example: “European AI regulation / European Commission AI law” justifies AI Act.
-If unsure, omit the label rather than guessing.
-
----
-
-## 8. Weighting Rules
-* Give more weight to the Title than to the body text when determining relevance.
-  * Labels mentioned or strongly implied in the Title are preferred.
-* Labels must still have supporting evidence in either the Title or Article.
-  * Article body can provide additional context, but cannot justify labels contradicting the Title.
-
----
-
-Output format:
-[{"justification":"U.S. National Institute of","label": "USA"},{"justification":"increasing cyber reliability in","label":"Cyber"}]
+Output example:
+["News","[S]1 Cyber",...]
 
 Label-List:
-Cyber-Lables:
+
+Cyber:
 ${cyberLables.join("\n")}
 
-Allgemeine Tags-Lables:
+Allgemeine:
 ${allgemeinLables.join("\n")}
 
-NewsInfo-Lables:
+NewsInfo:
 ${newsInfoLables.join("\n")}
 
-Struktur-Lables:
+Struktur:
 ${strukturLables.join("\n")}
 
 Article:
@@ -453,7 +366,7 @@ BEGIN
 Title: ${title}
 ${htmlContent}
 END
-`;
+  `;
 
   const apiKey = (await chrome.storage.local.get("openai_api_key")).openai_api_key;
 
@@ -462,7 +375,9 @@ END
   const response = await chrome.runtime.sendMessage({
     type: "OPENAI_CALL",
     apiKey: apiKey,
-    messages: [{ role: "user", content: prompt }]
+    model: model,
+    messages: [{ role: "user", content: prompt}],
+    temperature: 1
   })
   const data = response.data;
   const cleaned = data
@@ -475,7 +390,7 @@ END
 
   // Try parsing JSON
   try {
-    return JSON.parse(cleaned).map(e => e.label);
+    return JSON.parse(cleaned);
   } catch (err) {
     // fallback: split by line
     return text.split('\n').map(l => l.trim()).filter(Boolean);
