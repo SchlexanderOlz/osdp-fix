@@ -2,7 +2,7 @@
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.type === 'RUN_SCRIPT') {
-    runExtensionLogic().then(result => {
+    runExtensionLogic(msg.model).then(result => {
       sendResponse(result);
     });
 
@@ -118,7 +118,7 @@ async function getArticleTitleFromTextField() {
   return header.value
 }
 
-async function runExtensionLogic() {
+async function runExtensionLogic(model) {
   const result = {
     status: "success",
     fetchedContent: null,
@@ -196,7 +196,7 @@ async function runExtensionLogic() {
   // -------------------------------
   if (treeStructure) {
     try {
-      const linearLabels = await getRelevantLabelsFromGPT(treeStructure, relevantText, title);
+      const linearLabels = await getRelevantLabelsFromGPT(treeStructure, relevantText, title, model);
       result.labelsLinear = linearLabels;
       console.log("Linear Labels:", linearLabels);
 

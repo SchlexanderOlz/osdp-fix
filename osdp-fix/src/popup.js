@@ -3,22 +3,27 @@
 document.getElementById('runBtn').addEventListener('click', () => {
   const statusMessage = document.getElementById("statusMessage");
   const output = document.getElementById("output");
+
   function showStatus(message, type = "info") {
     statusMessage.textContent = message;
     statusMessage.className = `status-message status-${type}`;
   }
 
-  chrome.tabs.query({ active: true, currentWindow: true }, tabs => {
+  chrome.tabs.query({ active: true, currentWindow: true }, async tabs => {
+
+    const { selected_model } = await chrome.storage.local.get("selected_model");
+
     chrome.tabs.sendMessage(
       tabs[0].id,
-      { type: 'RUN_SCRIPT' },
+      { 
+        type: 'RUN_SCRIPT',
+        model: selected_model || "gpt-5-nano"
+      },
       r => {
         output.textContent = JSON.stringify(r);
         showStatus(r.message, r.status);
       }
     )
-
-
   });
 });
 
@@ -31,7 +36,9 @@ document.addEventListener("DOMContentLoaded", async () => {
   const statusMessage = document.getElementById("statusMessage");
   const keyIndicator = document.getElementById("keyIndicator");
 
-  console.log("Setting up handlers")
+  const modelSelect = document.getElementById("modelSelect");
+  const modelIndicator = document.getElementById("modelIndicator");
+
   function showStatus(message, type = "info") {
     statusMessage.textContent = message;
     statusMessage.className = `status-message status-${type}`;
@@ -41,38 +48,71 @@ document.addEventListener("DOMContentLoaded", async () => {
     statusMessage.classList.add("hidden");
   }
 
-  function showIndicator() {
-    keyIndicator.classList.remove("hidden");
+  function showIndicator(el) {
+    el.classList.remove("hidden");
   }
 
-  function hideIndicator() {
-    keyIndicator.classList.add("hidden");
+  function hideIndicator(el) {
+    el.classList.add("hidden");
   }
 
-  // Load stored key
-  const result = await chrome.storage.local.get("openai_api_key");
-  if (result.openai_api_key) {
-    apiKeyInput.value = result.openai_api_key;
-    showIndicator();
+  // -------------------------
+  // Load stored API key
+  // -------------------------
+  const keyResult = await chrome.storage.local.get("openai_api_key");
+  if (keyResult.openai_api_key) {
+    apiKeyInput.value = keyResult.openai_api_key;
+    showIndicator(keyIndicator);
   }
 
-  // Save key
+  // -------------------------
+  // Load stored model
+  // -------------------------
+  const modelResult = await chrome.storage.local.get("selected_model");
+
+  if (modelResult.selected_model) {
+    modelSelect.value = modelResult.selected_model;
+    showIndicator(modelIndicator);
+  } else {
+    // default
+    modelSelect.value = "gpt-5-nano";
+    await chrome.storage.local.set({ selected_model: "gpt-5-nano" });
+  }
+
+  // -------------------------
+  // Save API key (manual)
+  // -------------------------
   saveKeyBtn.addEventListener("click", async () => {
-    console.log("API Key saved")
     const key = apiKeyInput.value.trim();
 
     if (!key) {
       showStatus("API key cannot be empty.", "error");
-      hideIndicator();
+      hideIndicator(keyIndicator);
       return;
     }
 
     await chrome.storage.local.set({ openai_api_key: key });
 
-    showIndicator();
+    showIndicator(keyIndicator);
     showStatus("API key saved successfully.", "success");
   });
 
+  // -------------------------
+  // Auto-save model on change
+  // -------------------------
+  modelSelect.addEventListener("change", async () => {
+    const selectedModel = modelSelect.value;
+
+    await chrome.storage.local.set({
+      selected_model: selectedModel
+    });
+
+    showIndicator(modelIndicator);
+  });
+
+  // -------------------------
+  // Run button validation
+  // -------------------------
   runBtn.addEventListener("click", async () => {
     hideStatus();
     output.textContent = "";

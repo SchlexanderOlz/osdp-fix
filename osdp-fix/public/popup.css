@@ -120,3 +120,37 @@ pre {
   background: #7f1d1d;
   color: #f87171;
 }
+/* Select (Dropdown) Styling */
+
+select {
+  padding: 8px 36px 8px 10px;
+  border-radius: 6px;
+  border: 1px solid #374151;
+  background-color: #1f2937;
+  color: white;
+  outline: none;
+  font-size: 14px;
+
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+
+  background-image: url("data:image/svg+xml;utf8,<svg fill='%239ca3af' height='20' viewBox='0 0 20 20' width='20' xmlns='http://www.w3.org/2000/svg'><path d='M5.5 7l4.5 5 4.5-5z'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  background-size: 16px;
+  cursor: pointer;
+}
+
+select:hover {
+  border-color: #4b5563;
+}
+
+select:focus {
+  border-color: #3b82f6;
+}
+
+select option {
+  background-color: #1f2937;
+  color: white;
+}
