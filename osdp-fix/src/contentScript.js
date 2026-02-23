@@ -326,13 +326,12 @@ Category minimums:
 
 Geographic rule (VERY IMPORTANT):
 
-Only select a geographic label if its exact wording appears in the Article (between BEGIN and END).
-No inference, no abbreviation expansion.
+Select a geographic label only if the exact country name appears in the text (between BEGIN and END), or the text explicitly contains the full name of a known organization, city, or state that belongs to that country (e.g., "FBI" → USA, "New York" → USA).
+For the USA: US = USA
+Do not infer.
+If ZERO matches are found, output "kein Standort" as the only geographic Label.
 
-If ZERO exact geographic matches are found:
-Add "kein Standort" as the only geographic label.
-
-If 1–5 exact matches:
+If 1-5 exact matches:
 Include those labels.
 
 If more than 5 exact matches:
