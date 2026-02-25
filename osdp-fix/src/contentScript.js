@@ -9,6 +9,147 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true; // Required for async response
   }
 });
+
+// -------------------------------
+// TRANSLATE BUTTON HOOK
+// -------------------------------
+function hookTranslateButton() {
+  const buttons = document.querySelectorAll('button');
+  for (const btn of buttons) {
+    const span = btn.querySelector('span');
+    if (span && span.textContent.trim() === 'Translate') {
+      if (btn.dataset.translateHooked) return; // already hooked
+      btn.dataset.translateHooked = 'true';
+
+      btn.addEventListener('click', async (e) => {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        await handleTranslate();
+      }, true); // capture phase to run before other handlers
+
+      console.log('[OSDP Fix] Hooked Translate button');
+      return;
+    }
+  }
+}
+
+async function translateText(text, targetLang = 'en') {
+  return new Promise((resolve, reject) => {
+    chrome.runtime.sendMessage(
+      { type: 'GOOGLE_TRANSLATE', text, sourceLang: 'auto', targetLang },
+      response => {
+        if (response?.success) {
+          resolve(response.data);
+        } else {
+          reject(new Error(response?.error || 'Translation failed'));
+        }
+      }
+    );
+  });
+}
+
+async function handleTranslate() {
+  try {
+    console.log('[OSDP Fix] Starting translation...');
+
+    // Gather source fields
+    const titleEl = document.getElementById('mat-input-1') || document.getElementById('mat-input-4');
+    const subtitleEl = document.querySelector('input[name="subtitle"]');
+    const contentEditor = document.getElementById('editck') || document.getElementById('editck2');
+    const contentTextbox = contentEditor?.querySelector('div[role="textbox"]');
+
+    const title = titleEl?.value || '';
+    const subtitle = subtitleEl?.value || '';
+    const content = contentTextbox?.innerHTML || '';
+
+    console.log(title)
+    console.log(subtitle)
+    console.log(content)
+    if (!title && !content) {
+      console.warn('[OSDP Fix] No title or content to translate');
+      return;
+    }
+
+    // Translate all fields in parallel
+    const [translatedTitle, translatedSubtitle, translatedContent] = await Promise.all([
+      title ? translateText(title) : Promise.resolve(''),
+      subtitle ? translateText(subtitle) : Promise.resolve(''),
+      content ? translateText(content) : Promise.resolve('')
+    ]);
+
+    console.log(translatedTitle)
+
+    // Click the "Translated" tab
+    const tabs = document.querySelectorAll('div[role="tab"]');
+    for (const tab of tabs) {
+      const child = tab.querySelector('div');
+      if (child && child.textContent.trim().includes('Translated')) {
+        tab.click();
+        break;
+      }
+    }
+
+    // Wait for tab content to render
+    await new Promise(r => setTimeout(r, 500));
+
+    // Fill in translated fields
+    const translatedTitleEl = document.getElementById('mat-input-4');
+    const translatedSubtitleEl = document.getElementById('mat-input-5');
+    const translatedContentEditor = document.getElementById('editck2');
+
+    if (translatedTitleEl) {
+      setNativeInputValue(translatedTitleEl, translatedTitle);
+      console.log('[OSDP Fix] Set translated title');
+    }
+
+    if (translatedSubtitleEl) {
+      setNativeInputValue(translatedSubtitleEl, translatedSubtitle);
+      console.log('[OSDP Fix] Set translated subtitle');
+    }
+
+    if (translatedContentEditor) {
+      console.log(translatedContent)
+      const textbox = translatedContentEditor.querySelector('div[role="textbox"]');
+      if (textbox) {
+          textbox.focus();
+          const dataTransfer = new DataTransfer();
+          dataTransfer.setData('text/html', translatedContent);
+          dataTransfer.setData('text/plain', translatedContent.replace(/<[^>]+>/g, ''));
+
+          const pasteEvent = new ClipboardEvent('paste', {
+            bubbles: true,
+            cancelable: true,
+            clipboardData: dataTransfer
+          });
+
+          textbox.dispatchEvent(pasteEvent);
+
+      }
+    }
+
+    console.log('[OSDP Fix] Translation workflow complete');
+  } catch (err) {
+    console.error('[OSDP Fix] Translation error:', err);
+  }
+}
+
+// Set value on Angular Material input and trigger change detection
+function setNativeInputValue(el, value) {
+  const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
+    window.HTMLInputElement.prototype, 'value'
+  ).set;
+  nativeInputValueSetter.call(el, value);
+  el.dispatchEvent(new Event('input', { bubbles: true }));
+  el.dispatchEvent(new Event('change', { bubbles: true }));
+}
+
+// Observe DOM to hook the Translate button when it appears
+const translateObserver = new MutationObserver(() => {
+  hookTranslateButton();
+});
+translateObserver.observe(document.body, { childList: true, subtree: true });
+// Also try immediately
+hookTranslateButton();
 // -------------------------------
 // STEP 4 — Check relevant labels in the mat-tree
 // -------------------------------
@@ -108,13 +249,14 @@ async function fetchViaBackground(url) {
 }
 
 async function getArticleContentFromTextField() {
-  const editor = document.getElementById("editck")
+  const editor = document.getElementById("editck") || document.getElementById("editck2")
   const editorInner = editor.querySelector('div[role="textbox"]')
   return editorInner.textContent
 }
 
 async function getArticleTitleFromTextField() {
-  const header = document.getElementById("mat-input-1")
+  const header = document.getElementById("mat-input-1") ?? document.getElementById("mat-input-4")
+  console.log(header)
   return header.value
 }
 
@@ -196,7 +338,7 @@ async function runExtensionLogic(model) {
   // -------------------------------
   if (treeStructure) {
     try {
-      const linearLabels = await getRelevantLabelsFromGPT(treeStructure, relevantText, title, model);
+      const { labels: linearLabels, warnings } = await getRelevantLabelsFromGPT(treeStructure, relevantText, title, model);
       result.labelsLinear = linearLabels;
       console.log("Linear Labels:", linearLabels);
 
@@ -210,6 +352,11 @@ async function runExtensionLogic(model) {
       // STEP 4 — Mark labels in mat-tree
       // -------------------------------
       await markRelevantLabelsInMatTree(linearLabels);
+
+      if (warnings.length > 0) {
+        result.status = "warning";
+        result.message = "Tags added with warnings:\n" + warnings.join("\n");
+      }
 
     } catch (err) {
       result.status = "error"
@@ -378,6 +525,11 @@ END
     messages: [{ role: "user", content: prompt}],
     temperature: 1
   })
+
+  if (!response || !response.success) {
+    throw new Error(response?.error || "No response from OpenAI API");
+  }
+
   const data = response.data;
   const cleaned = data
     .replace(/```json/g, '')
@@ -388,12 +540,62 @@ END
   console.log("Data" + cleaned)
 
   // Try parsing JSON
+  let labels;
   try {
-    return JSON.parse(cleaned);
+    labels = JSON.parse(cleaned);
   } catch (err) {
     // fallback: split by line
-    return text.split('\n').map(l => l.trim()).filter(Boolean);
+    labels = cleaned.split('\n').map(l => l.trim()).filter(Boolean);
   }
+
+  // Validate required tags (warn but don't block)
+  const warnings = validateRequiredTags(labels, cyberLables, allgemeinLables);
+
+  return { labels, warnings };
+}
+
+// -------------------------------
+// Validate required tags in LLM output
+// -------------------------------
+function validateRequiredTags(labels, cyberLabels, allgemeineLabels) {
+  const errors = [];
+
+  if (!Array.isArray(labels)) {
+    return ["Response is not an array of labels."];
+  }
+
+  // "News" must be present
+  if (!labels.includes("News")) {
+    errors.push('Missing required label: "News"');
+  }
+
+  // "[S]1 Cyber" must be present
+  if (!labels.includes("[S]1 Cyber")) {
+    errors.push('Missing required label: "[S]1 Cyber"');
+  }
+
+  // Exactly one of "Nachrichtenseite" or "Blog"
+  const hasNachrichtenseite = labels.includes("Nachrichtenseite");
+  const hasBlog = labels.includes("Blog");
+  if (!hasNachrichtenseite && !hasBlog) {
+    errors.push('Missing required label: must include "Nachrichtenseite" or "Blog"');
+  } else if (hasNachrichtenseite && hasBlog) {
+    errors.push('Must include exactly ONE of "Nachrichtenseite" or "Blog", not both');
+  }
+
+  // At least 4 Cyber labels
+  const cyberCount = labels.filter(l => cyberLabels.includes(l)).length;
+  if (cyberCount < 4) {
+    errors.push(`Need at least 4 Cyber labels, got ${cyberCount}`);
+  }
+
+  // At least 5 Allgemeine Tags labels
+  const allgemeineCount = labels.filter(l => allgemeineLabels.includes(l)).length;
+  if (allgemeineCount < 5) {
+    errors.push(`Need at least 5 Allgemeine Tags labels, got ${allgemeineCount}`);
+  }
+
+  return errors;
 }
 
 /**

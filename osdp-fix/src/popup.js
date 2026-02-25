@@ -20,7 +20,12 @@ document.getElementById('runBtn').addEventListener('click', () => {
         model: selected_model || "gpt-5-nano"
       },
       r => {
-        output.textContent = JSON.stringify(r);
+        if (!r) {
+          output.textContent = "";
+          showStatus("No response. Make sure you are on an OSDP article page.", "error");
+          return;
+        }
+        output.textContent = JSON.stringify(r, null, 2);
         showStatus(r.message, r.status);
       }
     )

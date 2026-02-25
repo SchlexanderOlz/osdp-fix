@@ -120,6 +120,11 @@ pre {
   background: #7f1d1d;
   color: #f87171;
 }
+
+.status-warning {
+  background: #78350f;
+  color: #fbbf24;
+}
 /* Select (Dropdown) Styling */
 
 select {
