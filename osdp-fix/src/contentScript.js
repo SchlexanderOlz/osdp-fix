@@ -425,6 +425,28 @@ function flattenTreeLabels(tree) {
 }
 
 // -------------------------------
+// Dispatch prompt to the active auth backend
+// -------------------------------
+async function callLLM(prompt, model) {
+  const { auth_mode } = await chrome.storage.local.get("auth_mode");
+  const mode = auth_mode || "api_key";
+
+  if (mode === "chatgpt") {
+    await AwtsmoosGPTify("Prompt", "asdasd", "dfsdf")
+    return chrome.runtime.sendMessage({ type: "CHATGPT_CALL", prompt, model });
+  }
+
+  const { openai_api_key } = await chrome.storage.local.get("openai_api_key");
+  return chrome.runtime.sendMessage({
+    type: "OPENAI_CALL",
+    apiKey: openai_api_key,
+    model,
+    messages: [{ role: "user", content: prompt }],
+    temperature: 1
+  });
+}
+
+// -------------------------------
 // Send both tree and HTML to GPT
 // -------------------------------
 async function getRelevantLabelsFromGPT(tree, htmlContent, title, model = "gpt-5-nano") {
@@ -514,20 +536,10 @@ ${htmlContent}
 END
   `;
 
-  const apiKey = (await chrome.storage.local.get("openai_api_key")).openai_api_key;
-
-  // Example using OpenAI fetch endpoint
-  // Replace with your GPT API call
-  const response = await chrome.runtime.sendMessage({
-    type: "OPENAI_CALL",
-    apiKey: apiKey,
-    model: model,
-    messages: [{ role: "user", content: prompt}],
-    temperature: 1
-  })
+  const response = await callLLM(prompt, model);
 
   if (!response || !response.success) {
-    throw new Error(response?.error || "No response from OpenAI API");
+    throw new Error(response?.error || "No response from API");
   }
 
   const data = response.data;
@@ -619,4 +631,182 @@ function extractRelevantText(htmlContent, keywords = []) {
 
   // Join the matched texts
   return elements.map(el => el.textContent.trim()).join("\n\n");
+}
+
+async function AwtsmoosGPTify({
+    prompt = "Hi! Tell me about the Atzmut, but spell it Awtsmoos",
+    parent_message_id,
+    conversation_id,
+    callback = null
+}) {
+
+  let return_data = ""
+    var session  =await getSession()
+
+    var token = session.accessToken;
+    console.log(session)
+
+    
+    async function getSession() {
+      return chrome.runtime.sendMessage({ type: "CHATGPT_SESSION" })
+    }
+      async function awtsmoosifyTokens() {
+        console.log("Awtmossing tokens")
+
+        console.log("Importet")
+
+        z = await g.bk() //chat requirements
+
+        r =  await g.bi(z.turnstile.bx) //turnstyle token
+        arkose = await g.bl.getEnforcementToken(z)
+        p = await g.bm.getEnforcementToken(z) //p token
+
+        //A = fo(e.chatReq, l ?? e.arkoseToken, e.turnstileToken, e.proofToken, null)
+
+        return g.fX(z,arkose, r, p, null)
+    }
+    console.log("Before T")
+    console.log(prompt)
+    const t = {
+        "action": "next",
+        "messages": [
+            {
+                "id": generateUID(),
+                "author": {
+                    "role": "user"
+                },
+                "content": {
+                    "content_type": "text",
+                    "parts": [
+                        prompt
+                    ]
+                },
+                "metadata": {
+                    "serialization_metadata": {
+                        "custom_symbol_offsets": []
+                    }
+                },
+                "create_time": performance.now()
+            }
+        ],
+        conversation_id,
+        parent_message_id,
+        "model": "auto",
+        "timezone_offset_min": 300,
+        "timezone": "America/New_York",
+        "suggestions": [],
+        "history_and_training_disabled": false,
+        "conversation_mode": {
+            "kind": "primary_assistant",
+            "plugin_ids": null
+        },
+        "force_paragen": false,
+        "force_paragen_model_slug": "",
+        "force_rate_limit": false,
+        "reset_rate_limits": false,
+        "system_hints": [],
+        "force_use_sse": true,
+        "supported_encodings": [
+            "v1"
+        ],
+        "conversation_origin": null,
+        "client_contextual_info": {
+            "is_dark_mode": false,
+            "time_since_loaded": 121,
+            "page_height": 625,
+            "page_width": 406,
+            "pixel_ratio": 1,
+            "screen_height": 768,
+            "screen_width": 1366
+        },
+        "paragen_stream_type_override": null,
+        "paragen_cot_summary_display_override": "allow",
+        "supports_buffering": true
+    }
+
+    console.log("Defineid t")
+
+    function generateUID() {
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+            const r = Math.random() * 16 | 0;
+            const v = c === 'x' ? r : (r & 0x3 | 0x8);
+            return v.toString(16);
+        });
+    }
+    await sendIt(await awtsmoosifyTokens(), t)
+
+   
+    async function sendIt(headers, body) {
+        var g = chrome.runtime.sendMessage({type:"CHATGPT_COMPLETE", body: JSON.stringify(t), headers: headers, token: token});
+        console.log(g)
+        await logStream(g)
+    }
+
+    async function logStream(response) {
+       var hasCallback = typeof(callback) == "function"
+       var myCallback =  hasCallback ? callback : () => {};
+        // Check if the response is okay
+        if (!response.ok) {
+            console.error('Network response was not ok:', response.statusText);
+            return;
+        }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder("utf-8");
+        let buffer = '';
+        var curEvent = null;
+        while (true) {
+            const { done, value } = await reader.read();
+
+            if (done) {
+                console.log('Stream finished');
+                break;
+            }
+
+            // Decode the current chunk and add to the buffer
+            buffer += decoder.decode(value, { stream: true });
+
+            // Split buffer into lines
+            const lines = buffer.split('\n');
+
+            // Process each line
+            for (let line of lines) {
+                line = line.trim(); // Remove whitespace
+
+                // Check if the line starts with "event:" or "data:"
+                if (line.startsWith('event:')) {
+                    const event = line.substring(6).trim(); // Extract event type
+                    curEvent = event;
+                    
+                } else if (line.startsWith('data:')) {
+                    const data = line.substring(5).trim(); // Extract data
+                    
+                    
+                    // Attempt to parse the data as JSON
+                    try {
+                        const jsonData = JSON.parse(data);
+                        console.log(jsonData.v[0].v)
+                        return_data += jsonData.v[0].v
+                        if(!hasCallback)
+                            console.log('Parsed JSON Data:', jsonData);
+                        myCallback?.({data:jsonData, event: curEvent})
+                    } catch (e) {
+                        if(!hasCallback)
+                            console.warn('Data is not valid JSON:', data);
+                        myCallback({dataNoJSON: data,  event: curEvent, error:e})
+                    }
+                }
+            }
+
+            // Clear the buffer if the last line was complete
+            if (lines[lines.length - 1].trim() === '') {
+                buffer = '';
+            } else {
+                // Retain incomplete line for next iteration
+                buffer = lines[lines.length - 1];
+            }
+        }
+    }
+    console.log(return_data)
+    return return_data
 }

@@ -159,3 +159,45 @@ select option {
   background-color: #1f2937;
   color: white;
 }
+
+/* Auth Tabs */
+.auth-tabs {
+  display: flex;
+  gap: 4px;
+}
+
+.tab {
+  flex: 1;
+  padding: 6px 8px;
+  border-radius: 6px;
+  border: 1px solid #374151;
+  background: #1f2937;
+  color: #9ca3af;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.tab:hover {
+  background: #374151;
+  color: #d1d5db;
+}
+
+.tab-active {
+  background: #374151;
+  color: white;
+  border-color: #4b5563;
+}
+
+.help-text {
+  font-size: 11px;
+  color: #6b7280;
+  margin: 0;
+}
+
+.oauth-user-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+}

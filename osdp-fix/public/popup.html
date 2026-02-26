@@ -11,18 +11,38 @@
   <div class="container">
     <h1>OSDP Fix</h1>
 
-    <div class="section">
+    <!-- Auth Mode Tabs -->
+    <div class="auth-tabs">
+      <button id="tabApiKey" class="tab tab-active">API Key</button>
+      <button id="tabChatGPT" class="tab">ChatGPT Account</button>
+    </div>
+
+    <!-- API Key Section -->
+    <div id="sectionApiKey" class="section">
       <label for="apiKey">
         OpenAI API Key
         <span id="keyIndicator" class="indicator hidden">● Saved</span>
       </label>
-
       <input type="password" id="apiKey" placeholder="sk-..." autocomplete="off" />
-
       <button id="saveKeyBtn" class="secondary">Save Key</button>
     </div>
 
-    <!-- NEW MODEL SECTION -->
+    <!-- ChatGPT Session Section -->
+    <div id="sectionChatGPT" class="section hidden">
+      <div id="chatgptDisconnected">
+        <p class="help-text">Sign in to chatgpt.com in this browser, then connect below.</p>
+        <button id="chatgptConnectBtn" class="primary">Connect ChatGPT Session</button>
+      </div>
+      <div id="chatgptConnected" class="hidden">
+        <div class="oauth-user-info">
+          <span class="indicator">● Connected</span>
+          <span id="chatgptUserEmail" class="help-text"></span>
+        </div>
+        <button id="chatgptDisconnectBtn" class="secondary">Disconnect</button>
+      </div>
+    </div>
+
+    <!-- Model Section -->
     <div class="section">
       <label for="modelSelect">
         GPT Model
@@ -46,7 +66,7 @@
     </div>
   </div>
 
-  <script src="popup.js"></script>
+  <script type="module" src="popup.mjs"></script>
 </body>
 
 </html>
