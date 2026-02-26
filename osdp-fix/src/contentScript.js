@@ -1,4 +1,5 @@
 'use strict';
+import * as g from "./vendor/i5bamk05qmvsi6c3.js";
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.type === 'RUN_SCRIPT') {
@@ -360,7 +361,7 @@ async function runExtensionLogic(model) {
 
     } catch (err) {
       result.status = "error"
-      result.labelsLinear = "Failed to extract labels: " + err.message;
+      result.labelsLinear = "Failed to extract labels: " + err;
       result.message = result.labelsLinear;
       return result
     }
@@ -650,16 +651,17 @@ async function AwtsmoosGPTify({
     async function getSession() {
       return chrome.runtime.sendMessage({ type: "CHATGPT_SESSION" })
     }
-      async function awtsmoosifyTokens() {
+    async function awtsmoosifyTokens() {
         console.log("Awtmossing tokens")
+
 
         console.log("Importet")
 
-        z = await g.bk() //chat requirements
+        var z = await g.bk() //chat requirements
 
-        r =  await g.bi(z.turnstile.bx) //turnstyle token
-        arkose = await g.bl.getEnforcementToken(z)
-        p = await g.bm.getEnforcementToken(z) //p token
+        var r =  await g.bi(z.turnstile.bx) //turnstyle token
+        var arkose = await g.bl.getEnforcementToken(z)
+        var p = await g.bm.getEnforcementToken(z) //p token
 
         //A = fo(e.chatReq, l ?? e.arkoseToken, e.turnstileToken, e.proofToken, null)
 

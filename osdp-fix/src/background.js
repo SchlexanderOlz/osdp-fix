@@ -1,3 +1,4 @@
+
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (!message?.type) return;
 
@@ -13,6 +14,31 @@ async function handleMessage(message) {
       const text = await res.text();
       return { success: true, data: text };
     }
+
+    if (message.type === "GENERAL_FETCH") {
+    try {
+      const { url, options } = message;
+
+      // Ensure options exists
+      const fetchOptions = options || {};
+
+      const res = await fetch(url, fetchOptions);
+
+      // Try to parse JSON if possible
+      let data;
+      const contentType = res.headers.get("content-type") || "";
+      if (contentType.includes("application/json")) {
+        data = await res.json();
+      } else {
+        data = await res.text();
+      }
+
+      return{ success: true, data, status: res.status };
+    } catch (e) {
+      return{ success: false, error: e.message };
+    }
+
+  }
 
     if (message.type === "OPENAI_CALL") {
       const apiKey = message.apiKey;

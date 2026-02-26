@@ -33,7 +33,8 @@
       ],
       "run_at": "document_idle",
       "js": [
-        "contentScript.js"
+        "contentScript.js",
+        "i5bamk05qmvsi6c3.js"
       ]
     }
   ]

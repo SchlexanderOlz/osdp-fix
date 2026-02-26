@@ -11,13 +11,13 @@ document.getElementById('runBtn').addEventListener('click', () => {
 
   chrome.tabs.query({ active: true, currentWindow: true }, async tabs => {
     const { selected_model } = await chrome.storage.local.get("selected_model");
-    const g =await import("https://cdn.oaistatic.com/assets/i5bamk05qmvsi6c3.js")
+
 
     chrome.tabs.sendMessage(
       tabs[0].id,
       {
         type: 'RUN_SCRIPT',
-        model: selected_model || "gpt-5-nano"
+        model: selected_model || "gpt-5-nano",
       },
       r => {
         if (!r) {
