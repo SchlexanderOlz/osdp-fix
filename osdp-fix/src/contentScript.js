@@ -261,7 +261,7 @@ async function getArticleTitleFromTextField() {
   return header.value
 }
 
-async function runExtensionLogic(model, serviceTier = "standard") {
+async function runExtensionLogic(model, serviceTier = "default") {
   const result = {
     status: "success",
     fetchedContent: null,
@@ -428,7 +428,7 @@ function flattenTreeLabels(tree) {
 // -------------------------------
 // Dispatch prompt to the active auth backend
 // -------------------------------
-async function callLLM(prompt, model, serviceTier = "standard") {
+async function callLLM(prompt, model, serviceTier = "default") {
   const { auth_mode } = await chrome.storage.local.get("auth_mode");
   const mode = auth_mode || "api_key";
 
@@ -451,7 +451,7 @@ async function callLLM(prompt, model, serviceTier = "standard") {
 // -------------------------------
 // Send both tree and HTML to GPT
 // -------------------------------
-async function getRelevantLabelsFromGPT(tree, htmlContent, title, model = "gpt-5-nano", serviceTier = "standard") {
+async function getRelevantLabelsFromGPT(tree, htmlContent, title, model = "gpt-5-nano", serviceTier = "default") {
   const flattenedLabels = flattenTreeLabels(tree);
 
   let strukturLables

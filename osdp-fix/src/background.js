@@ -52,7 +52,7 @@ async function handleMessage(message) {
         },
         body: JSON.stringify({
           model: message.model || "gpt-5-nano",
-          service_tier: message.serviceTier || "standard",
+          service_tier: message.serviceTier || "default",
           reasoning: message.reasoning || { "effort": "low" },
           text: message.verbosity || { "verbosity": "low" },
           input: message.messages,

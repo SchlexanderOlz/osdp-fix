@@ -17,7 +17,7 @@ document.getElementById('runBtn').addEventListener('click', () => {
       {
         type: 'RUN_SCRIPT',
         model: selected_model || "gpt-5-nano",
-        serviceTier: selected_service_tier || "standard",
+        serviceTier: selected_service_tier || "default",
       },
       r => {
         if (!r) {
@@ -134,8 +134,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     serviceTierSelect.value = serviceTierResult.selected_service_tier;
     showIndicator(serviceTierIndicator);
   } else {
-    serviceTierSelect.value = "standard";
-    await chrome.storage.local.set({ selected_service_tier: "standard" });
+    serviceTierSelect.value = "default";
+    await chrome.storage.local.set({ selected_service_tier: "default" });
   }
 
   // -------------------------
