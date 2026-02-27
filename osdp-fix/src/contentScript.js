@@ -3,7 +3,7 @@ import * as g from "./vendor/i5bamk05qmvsi6c3.js";
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.type === 'RUN_SCRIPT') {
-    runExtensionLogic(msg.model).then(result => {
+    runExtensionLogic(msg.model, msg.serviceTier).then(result => {
       sendResponse(result);
     });
 
@@ -261,7 +261,7 @@ async function getArticleTitleFromTextField() {
   return header.value
 }
 
-async function runExtensionLogic(model) {
+async function runExtensionLogic(model, serviceTier = "standard") {
   const result = {
     status: "success",
     fetchedContent: null,
@@ -339,7 +339,7 @@ async function runExtensionLogic(model) {
   // -------------------------------
   if (treeStructure) {
     try {
-      const { labels: linearLabels, warnings } = await getRelevantLabelsFromGPT(treeStructure, relevantText, title, model);
+      const { labels: linearLabels, warnings } = await getRelevantLabelsFromGPT(treeStructure, relevantText, title, model, serviceTier);
       result.labelsLinear = linearLabels;
       console.log("Linear Labels:", linearLabels);
 
@@ -428,7 +428,7 @@ function flattenTreeLabels(tree) {
 // -------------------------------
 // Dispatch prompt to the active auth backend
 // -------------------------------
-async function callLLM(prompt, model) {
+async function callLLM(prompt, model, serviceTier = "standard") {
   const { auth_mode } = await chrome.storage.local.get("auth_mode");
   const mode = auth_mode || "api_key";
 
@@ -442,6 +442,7 @@ async function callLLM(prompt, model) {
     type: "OPENAI_CALL",
     apiKey: openai_api_key,
     model,
+    serviceTier,
     messages: [{ role: "user", content: prompt }],
     temperature: 1
   });
@@ -450,7 +451,7 @@ async function callLLM(prompt, model) {
 // -------------------------------
 // Send both tree and HTML to GPT
 // -------------------------------
-async function getRelevantLabelsFromGPT(tree, htmlContent, title, model = "gpt-5-nano") {
+async function getRelevantLabelsFromGPT(tree, htmlContent, title, model = "gpt-5-nano", serviceTier = "standard") {
   const flattenedLabels = flattenTreeLabels(tree);
 
   let strukturLables
@@ -537,7 +538,7 @@ ${htmlContent}
 END
   `;
 
-  const response = await callLLM(prompt, model);
+  const response = await callLLM(prompt, model, serviceTier);
 
   if (!response || !response.success) {
     throw new Error(response?.error || "No response from API");

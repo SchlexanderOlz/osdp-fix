@@ -10,14 +10,14 @@ document.getElementById('runBtn').addEventListener('click', () => {
   }
 
   chrome.tabs.query({ active: true, currentWindow: true }, async tabs => {
-    const { selected_model } = await chrome.storage.local.get("selected_model");
-
+    const { selected_model, selected_service_tier } = await chrome.storage.local.get(["selected_model", "selected_service_tier"]);
 
     chrome.tabs.sendMessage(
       tabs[0].id,
       {
         type: 'RUN_SCRIPT',
         model: selected_model || "gpt-5-nano",
+        serviceTier: selected_service_tier || "standard",
       },
       r => {
         if (!r) {
@@ -43,6 +43,8 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   const modelSelect = document.getElementById("modelSelect");
   const modelIndicator = document.getElementById("modelIndicator");
+  const serviceTierSelect = document.getElementById("serviceTierSelect");
+  const serviceTierIndicator = document.getElementById("serviceTierIndicator");
 
 
   // Auth mode elements
@@ -127,6 +129,15 @@ document.addEventListener("DOMContentLoaded", async () => {
     await chrome.storage.local.set({ selected_model: "gpt-5-nano" });
   }
 
+  const serviceTierResult = await chrome.storage.local.get("selected_service_tier");
+  if (serviceTierResult.selected_service_tier) {
+    serviceTierSelect.value = serviceTierResult.selected_service_tier;
+    showIndicator(serviceTierIndicator);
+  } else {
+    serviceTierSelect.value = "standard";
+    await chrome.storage.local.set({ selected_service_tier: "standard" });
+  }
+
   // -------------------------
   // Save API key
   // -------------------------
@@ -179,6 +190,11 @@ document.addEventListener("DOMContentLoaded", async () => {
   modelSelect.addEventListener("change", async () => {
     await chrome.storage.local.set({ selected_model: modelSelect.value });
     showIndicator(modelIndicator);
+  });
+
+  serviceTierSelect.addEventListener("change", async () => {
+    await chrome.storage.local.set({ selected_service_tier: serviceTierSelect.value });
+    showIndicator(serviceTierIndicator);
   });
 
   // -------------------------
